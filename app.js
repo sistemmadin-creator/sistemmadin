@@ -955,3 +955,601 @@ async function handleProcessImportExcel() {
         hideLoading();
     }
 }
+
+
+// ============================================================================
+// MODUL 5: EXPORT EXCEL, UNDUH PDF & PRINT (PER TES DAN REKAP TAHUNAN)
+// Mendukung Tingkat 15 Juz (Juz 1-15) & Tingkat 30 Juz (Juz 16-30)
+// ============================================================================
+
+function getFormattedTanggalCetak() {
+    return new Date().toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+    });
+}
+
+// ----------------------------------------------------------------------------
+// A. HELPER & EXPORT UNTUK NILAI PER TES (TES 1 S/D TES 10 PER TAHAP)
+// ----------------------------------------------------------------------------
+function buildDataNilaiTesForExport() {
+    const tingkat = appState.activeTingkat;
+    const tahap = appState.activeTahap;
+    const tesKe = appState.activeTes;
+    const tahapInfo = KONFIGURASI_TAHAP[tingkat][tahap];
+    const juzList = tahapInfo.juzList;
+
+    const keyword = document.getElementById('searchNilaiInput').value.trim().toLowerCase();
+    const santriFiltered = appState.santriList
+        .filter(s => s.tingkat === tingkat)
+        .filter(s => s.nama.toLowerCase().includes(keyword) || s.asrama.toLowerCase().includes(keyword))
+        .sort((a, b) => a.nama.localeCompare(b.nama));
+
+    const rows = santriFiltered.map((santri, idx) => {
+        const log = appState.nilaiMap[santri.id];
+        if (!log) {
+            return {
+                no: idx + 1,
+                nama: santri.nama,
+                asrama: santri.asrama,
+                juz1: '-',
+                juz2: '-',
+                juz3: '-',
+                juz4: '-',
+                juz5: '-',
+                rataRata: '-',
+                status: 'Belum Dinilai',
+                isLulus: false
+            };
+        }
+
+        const avg = parseFloat(log.rata_rata || 0);
+        const lulus = avg >= KKM_THRESHOLD;
+        return {
+            no: idx + 1,
+            nama: santri.nama,
+            asrama: santri.asrama,
+            juz1: Number(log.nilai_juz_1).toFixed(0),
+            juz2: Number(log.nilai_juz_2).toFixed(0),
+            juz3: Number(log.nilai_juz_3).toFixed(0),
+            juz4: Number(log.nilai_juz_4).toFixed(0),
+            juz5: Number(log.nilai_juz_5).toFixed(0),
+            rataRata: avg.toFixed(2),
+            status: lulus ? 'Tuntas / Lulus' : 'Belum Tuntas',
+            isLulus: lulus
+        };
+    });
+
+    return {
+        tingkat,
+        tahap,
+        tesKe,
+        tahapLabel: tahapInfo.label,
+        juzList,
+        rows
+    };
+}
+
+// 1. Export Excel Nilai Per Tes
+function exportNilaiTesExcel() {
+    const meta = buildDataNilaiTesForExport();
+    if (meta.rows.length === 0) {
+        Swal.fire('Data Kosong', 'Tidak ada data santri untuk diekspor.', 'info');
+        return;
+    }
+
+    const excelData = meta.rows.map(r => ({
+        "No": r.no,
+        "Nama Lengkap Santri": r.nama,
+        "Asrama": r.asrama,
+        [`Juz ${meta.juzList[0]}`]: r.juz1 === '-' ? '-' : Number(r.juz1),
+        [`Juz ${meta.juzList[1]}`]: r.juz2 === '-' ? '-' : Number(r.juz2),
+        [`Juz ${meta.juzList[2]}`]: r.juz3 === '-' ? '-' : Number(r.juz3),
+        [`Juz ${meta.juzList[3]}`]: r.juz4 === '-' ? '-' : Number(r.juz4),
+        [`Juz ${meta.juzList[4]}`]: r.juz5 === '-' ? '-' : Number(r.juz5),
+        "Rata-rata": r.rataRata === '-' ? '-' : Number(r.rataRata),
+        "Status KKM (Min 85)": r.status
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    worksheet['!cols'] = [
+        { wch: 6 },  // No
+        { wch: 30 }, // Nama
+        { wch: 22 }, // Asrama
+        { wch: 10 }, // Juz 1
+        { wch: 10 }, // Juz 2
+        { wch: 10 }, // Juz 3
+        { wch: 10 }, // Juz 4
+        { wch: 10 }, // Juz 5
+        { wch: 12 }, // Rata-rata
+        { wch: 20 }  // Status KKM
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    const sheetName = `Tes_${meta.tesKe}_Tahap_${meta.tahap}`;
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+
+    const fileName = `Nilai_Tahfidz_${meta.tingkat.replace(/\s+/g, '')}_Tahap${meta.tahap}_Tes${meta.tesKe}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+    showToast('success', 'File Excel berhasil diunduh');
+}
+
+// 2. Unduh PDF Nilai Per Tes
+function exportNilaiTesPDF() {
+    const meta = buildDataNilaiTesForExport();
+    if (meta.rows.length === 0) {
+        Swal.fire('Data Kosong', 'Tidak ada data santri untuk diunduh.', 'info');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('landscape', 'mm', 'a4');
+
+    // Header Laporan PDF
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`LAPORAN PENILAIAN TAHFIDZ SANTRI - TINGKAT ${meta.tingkat.toUpperCase()}`, 14, 15);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Periode: Tes ${meta.tesKe}  |  Tahap ${meta.tahap} (${meta.tahapLabel})  |  Standar KKM: 85.00  |  Tanggal Cetak: ${getFormattedTanggalCetak()}`, 14, 22);
+
+    const tableHead = [[
+        'No',
+        'Nama Lengkap Santri',
+        'Asrama',
+        `Juz ${meta.juzList[0]}`,
+        `Juz ${meta.juzList[1]}`,
+        `Juz ${meta.juzList[2]}`,
+        `Juz ${meta.juzList[3]}`,
+        `Juz ${meta.juzList[4]}`,
+        'Rata-rata',
+        'Status KKM'
+    ]];
+
+    const tableBody = meta.rows.map(r => [
+        r.no,
+        r.nama,
+        r.asrama,
+        r.juz1,
+        r.juz2,
+        r.juz3,
+        r.juz4,
+        r.juz5,
+        r.rataRata,
+        r.status
+    ]);
+
+    doc.autoTable({
+        startY: 27,
+        head: tableHead,
+        body: tableBody,
+        theme: 'grid',
+        headStyles: {
+            fillColor: [15, 118, 110],
+            textColor: 255,
+            halign: 'center',
+            fontStyle: 'bold'
+        },
+        columnStyles: {
+            0: { halign: 'center', cellWidth: 12 },
+            1: { halign: 'left', cellWidth: 65 },
+            2: { halign: 'center', cellWidth: 40 },
+            3: { halign: 'center', cellWidth: 18 },
+            4: { halign: 'center', cellWidth: 18 },
+            5: { halign: 'center', cellWidth: 18 },
+            6: { halign: 'center', cellWidth: 18 },
+            7: { halign: 'center', cellWidth: 18 },
+            8: { halign: 'center', cellWidth: 24, fontStyle: 'bold' },
+            9: { halign: 'center', cellWidth: 38, fontStyle: 'bold' }
+        },
+        didParseCell: function (data) {
+            if (data.section === 'body' && data.column.index === 9) {
+                const val = data.cell.raw;
+                if (val === 'Tuntas / Lulus') {
+                    data.cell.styles.textColor = [22, 101, 52];
+                } else if (val === 'Belum Tuntas') {
+                    data.cell.styles.textColor = [185, 28, 28];
+                }
+            }
+        }
+    });
+
+    const fileName = `Laporan_Nilai_${meta.tingkat.replace(/\s+/g, '')}_Tahap${meta.tahap}_Tes${meta.tesKe}.pdf`;
+    doc.save(fileName);
+    showToast('success', 'Laporan PDF berhasil diunduh');
+}
+
+// 3. Print / Cetak Langsung Nilai Per Tes
+function printNilaiTes() {
+    const meta = buildDataNilaiTesForExport();
+    if (meta.rows.length === 0) {
+        Swal.fire('Data Kosong', 'Tidak ada data santri untuk dicetak.', 'info');
+        return;
+    }
+
+    const rowsHtml = meta.rows.map(r => `
+        <tr>
+            <td style="text-align:center;">${r.no}</td>
+            <td><strong>${escapeHtml(r.nama)}</strong></td>
+            <td style="text-align:center;">${escapeHtml(r.asrama)}</td>
+            <td style="text-align:center;">${r.juz1}</td>
+            <td style="text-align:center;">${r.juz2}</td>
+            <td style="text-align:center;">${r.juz3}</td>
+            <td style="text-align:center;">${r.juz4}</td>
+            <td style="text-align:center;">${r.juz5}</td>
+            <td style="text-align:center; font-weight:bold;">${r.rataRata}</td>
+            <td style="text-align:center; font-weight:bold; color:${r.status === 'Tuntas / Lulus' ? '#15803d' : (r.status === 'Belum Tuntas' ? '#b91c1c' : '#64748b')};">
+                ${r.status}
+            </td>
+        </tr>
+    `).join('');
+
+    const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="id">
+        <head>
+            <meta charset="UTF-8">
+            <title>Cetak Nilai Tahfidz - ${meta.tingkat} - Tes ${meta.tesKe}</title>
+            <style>
+                @page { size: A4 landscape; margin: 15mm; }
+                body { font-family: Arial, sans-serif; color: #1e293b; font-size: 12px; margin: 0; }
+                .header { text-align: center; border-bottom: 2px solid #0f766e; padding-bottom: 10px; margin-bottom: 15px; }
+                .header h2 { margin: 0 0 5px 0; color: #0f766e; text-transform: uppercase; }
+                .header p { margin: 2px 0; color: #475569; font-size: 11px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                th, td { border: 1px solid #94a3b8; padding: 7px 8px; }
+                th { background-color: #0f766e; color: #ffffff; text-transform: uppercase; font-size: 11px; }
+                tr:nth-child(even) { background-color: #f8fafc; }
+                .footer-sign { margin-top: 30px; display: flex; justify-content: flex-end; }
+                .sign-box { text-align: center; width: 220px; }
+                .sign-space { height: 60px; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h2>Laporan Hasil Penilaian Tahfidz Santri</h2>
+                <p><strong>Kategori:</strong> Tingkat ${meta.tingkat} &nbsp;|&nbsp; <strong>Tahap ${meta.tahap}:</strong> ${meta.tahapLabel} &nbsp;|&nbsp; <strong>Periode Evaluasi:</strong> Tes ${meta.tesKe}</p>
+                <p>Kriteria Ketuntasan Minimum (KKM): 85.00 &nbsp;|&nbsp; Tanggal Cetak: ${getFormattedTanggalCetak()}</p>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:35px;">No</th>
+                        <th>Nama Lengkap Santri</th>
+                        <th>Asrama</th>
+                        <th>Juz ${meta.juzList[0]}</th>
+                        <th>Juz ${meta.juzList[1]}</th>
+                        <th>Juz ${meta.juzList[2]}</th>
+                        <th>Juz ${meta.juzList[3]}</th>
+                        <th>Juz ${meta.juzList[4]}</th>
+                        <th>Rata-rata</th>
+                        <th>Status KKM</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+            <div class="footer-sign">
+                <div class="sign-box">
+                    <p>Mengetahui,<br>Koordinator Tahfidz</p>
+                    <div class="sign-space"></div>
+                    <p><strong>( _______________________ )</strong></p>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+
+    openPrintWindow(htmlContent);
+}
+
+// ----------------------------------------------------------------------------
+// B. HELPER & EXPORT UNTUK REKAPITULASI TAHUNAN (TES 1 S/D TES 10)
+// ----------------------------------------------------------------------------
+function buildDataRekapForExport() {
+    const tingkat = appState.activeTingkat;
+    const tahapFilter = document.getElementById('rekapTahapFilter').value;
+    const tahapSelectEl = document.getElementById('rekapTahapFilter');
+    const tahapFilterText = tahapSelectEl.options[tahapSelectEl.selectedIndex]?.text || 'Semua Tahap';
+
+    const keyword = document.getElementById('searchRekapInput').value.trim().toLowerCase();
+    const santriFiltered = appState.santriList
+        .filter(s => s.tingkat === tingkat)
+        .filter(s => s.nama.toLowerCase().includes(keyword) || s.asrama.toLowerCase().includes(keyword))
+        .sort((a, b) => a.nama.localeCompare(b.nama));
+
+    const rows = santriFiltered.map((santri, idx) => {
+        const logsSantri = appState.rekapLogs.filter(log => {
+            const matchSantri = log.santri_id === santri.id;
+            const matchTahap = tahapFilter === 'ALL' || String(log.tahap) === String(tahapFilter);
+            return matchSantri && matchTahap;
+        });
+
+        let totalSemuaTes = 0;
+        let jumlahTesTerisi = 0;
+        const nilaiPerTes = {};
+
+        for (let tes = 1; tes <= 10; tes++) {
+            const logsPerTes = logsSantri.filter(l => l.tes_ke === tes);
+            if (logsPerTes.length === 0) {
+                nilaiPerTes[`tes_${tes}`] = '-';
+            } else {
+                const avgTes = logsPerTes.reduce((sum, item) => sum + parseFloat(item.rata_rata), 0) / logsPerTes.length;
+                totalSemuaTes += avgTes;
+                jumlahTesTerisi++;
+                nilaiPerTes[`tes_${tes}`] = Number(avgTes.toFixed(1));
+            }
+        }
+
+        const rataAkhirNum = jumlahTesTerisi > 0 ? (totalSemuaTes / jumlahTesTerisi) : null;
+        const rataAkhirStr = rataAkhirNum !== null ? rataAkhirNum.toFixed(2) : '-';
+        let statusAkhir = 'Belum Ada Nilai';
+
+        if (rataAkhirNum !== null) {
+            statusAkhir = rataAkhirNum >= KKM_THRESHOLD ? 'LULUS / TUNTAS' : 'BELUM TUNTAS';
+        }
+
+        return {
+            no: idx + 1,
+            nama: santri.nama,
+            asrama: santri.asrama,
+            ...nilaiPerTes,
+            rataAkhir: rataAkhirStr,
+            statusAkhir
+        };
+    });
+
+    return {
+        tingkat,
+        tahapFilter,
+        tahapFilterText,
+        rows
+    };
+}
+
+// 1. Export Excel Rekap Tahunan (Tes 1 s/d Tes 10)
+function exportRekapExcel() {
+    const meta = buildDataRekapForExport();
+    if (meta.rows.length === 0) {
+        Swal.fire('Data Kosong', 'Tidak ada data rekap tahunan untuk diekspor.', 'info');
+        return;
+    }
+
+    const excelData = meta.rows.map(r => ({
+        "No": r.no,
+        "Nama Lengkap Santri": r.nama,
+        "Asrama": r.asrama,
+        "Tes 1": r.tes_1,
+        "Tes 2": r.tes_2,
+        "Tes 3": r.tes_3,
+        "Tes 4": r.tes_4,
+        "Tes 5": r.tes_5,
+        "Tes 6": r.tes_6,
+        "Tes 7": r.tes_7,
+        "Tes 8": r.tes_8,
+        "Tes 9": r.tes_9,
+        "Tes 10": r.tes_10,
+        "Rata-rata Akhir": r.rataAkhir === '-' ? '-' : Number(r.rataAkhir),
+        "Status Kelulusan Akhir": r.statusAkhir
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    worksheet['!cols'] = [
+        { wch: 6 },  // No
+        { wch: 30 }, // Nama
+        { wch: 22 }, // Asrama
+        { wch: 8 },  // Tes 1
+        { wch: 8 },  // Tes 2
+        { wch: 8 },  // Tes 3
+        { wch: 8 },  // Tes 4
+        { wch: 8 },  // Tes 5
+        { wch: 8 },  // Tes 6
+        { wch: 8 },  // Tes 7
+        { wch: 8 },  // Tes 8
+        { wch: 8 },  // Tes 9
+        { wch: 8 },  // Tes 10
+        { wch: 15 }, // Rata-rata Akhir
+        { wch: 22 }  // Status Kelulusan Akhir
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, `Rekap_${meta.tingkat.replace(/\s+/g, '')}`);
+
+    const tahapSuffix = meta.tahapFilter === 'ALL' ? 'SemuaTahap' : `Tahap${meta.tahapFilter}`;
+    const fileName = `Rekap_Tahunan_Tahfidz_${meta.tingkat.replace(/\s+/g, '')}_${tahapSuffix}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+    showToast('success', 'File Excel Rekap Tahunan berhasil diunduh');
+}
+
+// 2. Unduh PDF Rekap Tahunan (Tes 1 s/d Tes 10)
+function exportRekapPDF() {
+    const meta = buildDataRekapForExport();
+    if (meta.rows.length === 0) {
+        Swal.fire('Data Kosong', 'Tidak ada data rekap tahunan untuk diunduh.', 'info');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('landscape', 'mm', 'a4');
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`REKAPITULASI TAHUNAN PENILAIAN TAHFIDZ (TES 1 S/D TES 10) - TINGKAT ${meta.tingkat.toUpperCase()}`, 14, 15);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Cakupan: ${meta.tahapFilterText}  |  Standar KKM: 85.00  |  Tanggal Cetak: ${getFormattedTanggalCetak()}`, 14, 22);
+
+    const tableHead = [[
+        'No', 'Nama Santri', 'Asrama',
+        'T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10',
+        'Rata-rata', 'Status Akhir'
+    ]];
+
+    const tableBody = meta.rows.map(r => [
+        r.no, r.nama, r.asrama,
+        r.tes_1, r.tes_2, r.tes_3, r.tes_4, r.tes_5,
+        r.tes_6, r.tes_7, r.tes_8, r.tes_9, r.tes_10,
+        r.rataAkhir, r.statusAkhir
+    ]);
+
+    doc.autoTable({
+        startY: 27,
+        head: tableHead,
+        body: tableBody,
+        theme: 'grid',
+        styles: { fontSize: 8.5, cellPadding: 2 },
+        headStyles: {
+            fillColor: [15, 118, 110],
+            textColor: 255,
+            halign: 'center',
+            fontStyle: 'bold'
+        },
+        columnStyles: {
+            0: { halign: 'center', cellWidth: 10 },
+            1: { halign: 'left', cellWidth: 52 },
+            2: { halign: 'center', cellWidth: 32 },
+            3: { halign: 'center', cellWidth: 12 },
+            4: { halign: 'center', cellWidth: 12 },
+            5: { halign: 'center', cellWidth: 12 },
+            6: { halign: 'center', cellWidth: 12 },
+            7: { halign: 'center', cellWidth: 12 },
+            8: { halign: 'center', cellWidth: 12 },
+            9: { halign: 'center', cellWidth: 12 },
+            10: { halign: 'center', cellWidth: 12 },
+            11: { halign: 'center', cellWidth: 12 },
+            12: { halign: 'center', cellWidth: 12 },
+            13: { halign: 'center', cellWidth: 20, fontStyle: 'bold' },
+            14: { halign: 'center', cellWidth: 33, fontStyle: 'bold' }
+        },
+        didParseCell: function (data) {
+            if (data.section === 'body' && data.column.index === 14) {
+                const val = data.cell.raw;
+                if (val === 'LULUS / TUNTAS') {
+                    data.cell.styles.textColor = [22, 101, 52];
+                } else if (val === 'BELUM TUNTAS') {
+                    data.cell.styles.textColor = [185, 28, 28];
+                }
+            }
+        }
+    });
+
+    const tahapSuffix = meta.tahapFilter === 'ALL' ? 'SemuaTahap' : `Tahap${meta.tahapFilter}`;
+    const fileName = `Rekap_Tahunan_${meta.tingkat.replace(/\s+/g, '')}_${tahapSuffix}.pdf`;
+    doc.save(fileName);
+    showToast('success', 'PDF Rekap Tahunan berhasil diunduh');
+}
+
+// 3. Print / Cetak Langsung Rekap Tahunan
+function printRekapTahunan() {
+    const meta = buildDataRekapForExport();
+    if (meta.rows.length === 0) {
+        Swal.fire('Data Kosong', 'Tidak ada data rekap tahunan untuk dicetak.', 'info');
+        return;
+    }
+
+    const rowsHtml = meta.rows.map(r => `
+        <tr>
+            <td style="text-align:center;">${r.no}</td>
+            <td><strong>${escapeHtml(r.nama)}</strong></td>
+            <td style="text-align:center;">${escapeHtml(r.asrama)}</td>
+            <td style="text-align:center;">${r.tes_1}</td>
+            <td style="text-align:center;">${r.tes_2}</td>
+            <td style="text-align:center;">${r.tes_3}</td>
+            <td style="text-align:center;">${r.tes_4}</td>
+            <td style="text-align:center;">${r.tes_5}</td>
+            <td style="text-align:center;">${r.tes_6}</td>
+            <td style="text-align:center;">${r.tes_7}</td>
+            <td style="text-align:center;">${r.tes_8}</td>
+            <td style="text-align:center;">${r.tes_9}</td>
+            <td style="text-align:center;">${r.tes_10}</td>
+            <td style="text-align:center; font-weight:bold;">${r.rataAkhir}</td>
+            <td style="text-align:center; font-weight:bold; color:${r.statusAkhir === 'LULUS / TUNTAS' ? '#15803d' : (r.statusAkhir === 'BELUM TUNTAS' ? '#b91c1c' : '#64748b')};">
+                ${r.statusAkhir}
+            </td>
+        </tr>
+    `).join('');
+
+    const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="id">
+        <head>
+            <meta charset="UTF-8">
+            <title>Cetak Rekap Tahunan - ${meta.tingkat}</title>
+            <style>
+                @page { size: A4 landscape; margin: 12mm; }
+                body { font-family: Arial, sans-serif; color: #1e293b; font-size: 11px; margin: 0; }
+                .header { text-align: center; border-bottom: 2px solid #0f766e; padding-bottom: 8px; margin-bottom: 12px; }
+                .header h2 { margin: 0 0 4px 0; color: #0f766e; text-transform: uppercase; font-size: 16px; }
+                .header p { margin: 2px 0; color: #475569; font-size: 11px; }
+                table { width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid #94a3b8; padding: 5px 6px; }
+                th { background-color: #0f766e; color: #ffffff; text-transform: uppercase; font-size: 10px; }
+                tr:nth-child(even) { background-color: #f8fafc; }
+                .footer-sign { margin-top: 25px; display: flex; justify-content: flex-end; }
+                .sign-box { text-align: center; width: 220px; }
+                .sign-space { height: 55px; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h2>Rekapitulasi Tahunan Penilaian Tahfidz Santri (Tes 1 s/d Tes 10)</h2>
+                <p><strong>Kategori:</strong> Tingkat ${meta.tingkat} &nbsp;|&nbsp; <strong>Cakupan Tahap:</strong> ${meta.tahapFilterText}</p>
+                <p>Kriteria Ketuntasan Minimum (KKM): 85.00 &nbsp;|&nbsp; Tanggal Cetak: ${getFormattedTanggalCetak()}</p>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:30px;">No</th>
+                        <th>Nama Lengkap Santri</th>
+                        <th>Asrama</th>
+                        <th>Tes 1</th>
+                        <th>Tes 2</th>
+                        <th>Tes 3</th>
+                        <th>Tes 4</th>
+                        <th>Tes 5</th>
+                        <th>Tes 6</th>
+                        <th>Tes 7</th>
+                        <th>Tes 8</th>
+                        <th>Tes 9</th>
+                        <th>Tes 10</th>
+                        <th>Rata-rata Akhir</th>
+                        <th>Status Kelulusan Akhir</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+            <div class="footer-sign">
+                <div class="sign-box">
+                    <p>Mengetahui,<br>Koordinator Tahfidz</p>
+                    <div class="sign-space"></div>
+                    <p><strong>( _______________________ )</strong></p>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+
+    openPrintWindow(htmlContent);
+}
+
+// Helper Pembuka Jendela Print Bersih
+function openPrintWindow(htmlString) {
+    const printWin = window.open('', '_blank', 'width=1100,height=750');
+    if (!printWin) {
+        Swal.fire('Pop-up Diblokir', 'Izinkan pop-up pada browser Anda untuk mencetak dokumen.', 'warning');
+        return;
+    }
+    printWin.document.open();
+    printWin.document.write(htmlString);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => {
+        printWin.print();
+    }, 400);
+}
