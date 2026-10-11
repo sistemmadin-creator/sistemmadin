@@ -113,17 +113,22 @@
 
             <!-- Card Tabel Database Santri -->
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-                    <div>
-                        <h5 class="fw-bold mb-0 text-dark">
-                            <i class="fa-solid fa-database text-emerald me-2"></i>Master Database Santri
-                        </h5>
-                        <small class="text-muted">Kelola data identitas, asrama, dan kategori tingkat hafalan santri</small>
-                    </div>
+            <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h5 class="fw-bold mb-0 text-dark">
+                        <i class="fa-solid fa-database text-emerald me-2"></i>Master Database Santri
+                    </h5>
+                    <small class="text-muted">Kelola data identitas, asrama, dan kategori tingkat hafalan santri</small>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-outline-emerald fw-semibold" onclick="openImportModal()">
+                        <i class="fa-solid fa-file-excel me-2"></i>Import Excel
+                    </button>
                     <button class="btn btn-emerald fw-semibold" onclick="openSantriModal()">
                         <i class="fa-solid fa-user-plus me-2"></i>Tambah Santri Baru
                     </button>
                 </div>
+            </div>
 
                 <div class="card-body">
                     <!-- Filter & Pencarian Realtime -->
@@ -452,10 +457,83 @@
         </div>
     </div>
 
-    <!-- Bootstrap 5 JS Bundle -->
+    <!-- ================================================================== -->
+<!-- MODAL 3: IMPORT DATA SANTRI DARI EXCEL                             -->
+<!-- ================================================================== -->
+<div class="modal fade" id="importExcelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-emerald text-white">
+                <div>
+                    <h5 class="modal-title fw-bold mb-0">
+                        <i class="fa-solid fa-file-excel me-2"></i>Import Massal Database Santri
+                    </h5>
+                    <small class="text-white-50">Unggah file Excel (.xlsx / .xls / .csv) untuk menambahkan ratusan santri sekaligus</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Langkah 1: Unduh Template -->
+                <div class="alert alert-light border d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+                    <div>
+                        <div class="fw-bold text-dark">
+                            <i class="fa-solid fa-circle-info text-emerald me-1"></i>Format Kolom Wajib:
+                        </div>
+                        <small class="text-muted">Pastikan baris pertama Excel memiliki kolom: <code>Nama Lengkap</code>, <code>Asrama</code>, dan <code>Tingkat</code> (isi dengan <b>15 Juz</b> atau <b>30 Juz</b>).</small>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-emerald fw-semibold" onclick="downloadTemplateExcel()">
+                        <i class="fa-solid fa-download me-1"></i>Unduh Template Excel
+                    </button>
+                </div>
+
+                <!-- Langkah 2: Pilih File Excel -->
+                <div class="mb-4">
+                    <label class="form-label fw-semibold">Pilih File Excel <span class="text-danger">*</span></label>
+                    <input type="file" id="excelFileInput" class="form-control" 
+                           accept=".xlsx, .xls, .csv" onchange="handleExcelFilePreview(event)">
+                </div>
+
+                <!-- Langkah 3: Area Pratinjau Data -->
+                <div id="importPreviewContainer" class="d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold small text-uppercase text-secondary">Pratinjau Data Sebelum Import:</span>
+                        <div class="d-flex gap-2">
+                            <span class="badge bg-success-subtle text-success border border-success-subtle" id="badgeValidCount">0 Valid</span>
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle" id="badgeInvalidCount">0 Tidak Valid</span>
+                        </div>
+                    </div>
+                    <div class="table-responsive border rounded" style="max-height: 260px; overflow-y: auto;">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th class="text-center" style="width: 50px;">Baris</th>
+                                    <th>Nama Lengkap</th>
+                                    <th>Asrama</th>
+                                    <th class="text-center">Tingkat</th>
+                                    <th class="text-center">Status Validasi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="importPreviewTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" id="btnSubmitImport" class="btn btn-emerald fw-semibold px-4" onclick="handleProcessImportExcel()" disabled>
+                    <i class="fa-solid fa-cloud-arrow-up me-2"></i>Import ke Database
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <!-- SweetAlert2 JS -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.5/dist/sweetalert2.all.min.js"></script>
+    <!-- SheetJS (XLSX) untuk Import/Export Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Supabase JS Client v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Main Application Logic -->
