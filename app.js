@@ -767,3 +767,191 @@ function renderRekapTable() {
         `;
     }).join('');
 }
+
+// ============================================================================
+// MODUL 4: IMPORT MASSAL DATABASE SANTRI DARI EXCEL (SHEETJS)
+// ============================================================================
+let importModalInstance = null;
+let parsedExcelValidRows = [];
+
+function getImportModal() {
+    if (!importModalInstance) {
+        const modalEl = document.getElementById('importExcelModal');
+        if (modalEl) {
+            importModalInstance = new bootstrap.Modal(modalEl);
+        }
+    }
+    return importModalInstance;
+}
+
+function openImportModal() {
+    parsedExcelValidRows = [];
+    document.getElementById('excelFileInput').value = '';
+    document.getElementById('importPreviewContainer').classList.add('d-none');
+    document.getElementById('importPreviewTableBody').innerHTML = '';
+    document.getElementById('btnSubmitImport').disabled = true;
+
+    const modal = getImportModal();
+    if (modal) modal.show();
+}
+
+// Fungsi Unduh Template Excel (.xlsx)
+function downloadTemplateExcel() {
+    if (typeof XLSX === 'undefined') {
+        Swal.fire('Library Belum Siap', 'Pastikan CDN SheetJS (xlsx) sudah terpasang di index.html.', 'error');
+        return;
+    }
+
+    const templateData = [
+        { "Nama Lengkap": "Ahmad Fauzan Al-Farisi", "Asrama": "Asrama Abu Bakar", "Tingkat": "15 Juz" },
+        { "Nama Lengkap": "Muhammad Rizky Pratama", "Asrama": "Asrama Umar bin Khattab", "Tingkat": "15 Juz" },
+        { "Nama Lengkap": "Zaidan Abdurrahman", "Asrama": "Asrama Utsman bin Affan", "Tingkat": "30 Juz" }
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    // Atur lebar kolom agar rapi saat dibuka di Microsoft Excel
+    worksheet['!cols'] = [
+        { wch: 30 }, // Kolom Nama Lengkap
+        { wch: 25 }, // Kolom Asrama
+        { wch: 15 }  // Kolom Tingkat
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Data_Santri");
+    XLSX.writeFile(workbook, "Template_Import_Santri_Tahfidz.xlsx");
+}
+
+// Fungsi Normalisasi Tingkat (15 -> '15 Juz', 30 -> '30 Juz')
+function normalizeTingkatSantri(rawVal) {
+    if (rawVal === undefined || rawVal === null) return null;
+    const cleaned = String(rawVal).trim().toLowerCase();
+    if (cleaned === '15' || cleaned === '15 juz' || cleaned === '15juz' || cleaned.includes('15')) {
+        return '15 Juz';
+    }
+    if (cleaned === '30' || cleaned === '30 juz' || cleaned === '30juz' || cleaned.includes('30')) {
+        return '30 Juz';
+    }
+    return null;
+}
+
+// Fungsi Baca & Pratinjau File Excel saat Dipilih
+function handleExcelFilePreview(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    showLoading('Membaca file Excel...');
+    const reader = new FileReader();
+
+    reader.onload = function (e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+
+            // Ambil sheet pertama
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+
+            // Konversi ke array objek JSON
+            const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+            if (rawRows.length === 0) {
+                Swal.fire('File Kosong', 'Tidak ditemukan baris data di dalam file Excel tersebut.', 'warning');
+                hideLoading();
+                return;
+            }
+
+            parsedExcelValidRows = [];
+            let invalidCount = 0;
+            const previewHtml = [];
+
+            rawRows.forEach((row, index) => {
+                // Pencocokan nama kolom yang fleksibel (tidak peka huruf besar/kecil atau spasi)
+                const normalizedRow = {};
+                Object.keys(row).forEach(k => {
+                    normalizedRow[k.trim().toLowerCase()] = row[k];
+                });
+
+                const rawNama = normalizedRow['nama lengkap'] || normalizedRow['nama santri'] || normalizedRow['nama'] || '';
+                const rawAsrama = normalizedRow['asrama'] || normalizedRow['kamar'] || normalizedRow['nama asrama'] || '';
+                const rawTingkat = normalizedRow['tingkat'] || normalizedRow['kategori'] || normalizedRow['kategori tingkat'] || '';
+
+                const nama = String(rawNama).trim();
+                const asrama = String(rawAsrama).trim();
+                const tingkat = normalizeTingkatSantri(rawTingkat);
+
+                const isValid = nama.length > 0 && asrama.length > 0 && tingkat !== null;
+
+                if (isValid) {
+                    parsedExcelValidRows.push({ nama, asrama, tingkat });
+                } else {
+                    invalidCount++;
+                }
+
+                previewHtml.push(`
+                    <tr class="${isValid ? '' : 'table-danger'}">
+                        <td class="text-center text-muted small">${index + 2}</td>
+                        <td class="fw-semibold">${nama ? escapeHtml(nama) : '<span class="text-danger fst-italic">Kosong</span>'}</td>
+                        <td>${asrama ? escapeHtml(asrama) : '<span class="text-danger fst-italic">Kosong</span>'}</td>
+                        <td class="text-center">${tingkat ? `<span class="badge bg-secondary">${tingkat}</span>` : `<span class="text-danger small fw-bold">Invalid (${escapeHtml(String(rawTingkat))})</span>`}</td>
+                        <td class="text-center">
+                            ${isValid 
+                                ? '<span class="badge bg-success"><i class="fa-solid fa-check me-1"></i>Siap Import</span>' 
+                                : '<span class="badge bg-danger"><i class="fa-solid fa-xmark me-1"></i>Dilewati</span>'}
+                        </td>
+                    </tr>
+                `);
+            });
+
+            document.getElementById('importPreviewTableBody').innerHTML = previewHtml.join('');
+            document.getElementById('badgeValidCount').textContent = `${parsedExcelValidRows.length} Data Valid`;
+            document.getElementById('badgeInvalidCount').textContent = `${invalidCount} Tidak Valid`;
+            document.getElementById('importPreviewContainer').classList.remove('d-none');
+
+            const btnSubmit = document.getElementById('btnSubmitImport');
+            btnSubmit.disabled = parsedExcelValidRows.length === 0;
+            btnSubmit.innerHTML = `<i class="fa-solid fa-cloud-arrow-up me-2"></i>Import ${parsedExcelValidRows.length} Santri`;
+
+        } catch (err) {
+            Swal.fire('Gagal Membaca File Excel', 'Pastikan format file adalah .xlsx, .xls, atau .csv yang valid.', 'error');
+        } finally {
+            hideLoading();
+        }
+    };
+
+    reader.readAsArrayBuffer(file);
+}
+
+// Fungsi Simpan Massal (Bulk Insert) ke Supabase
+async function handleProcessImportExcel() {
+    if (parsedExcelValidRows.length === 0) return;
+
+    showLoading(`Mengimpor ${parsedExcelValidRows.length} data santri ke database...`);
+    try {
+        // Bagi menjadi batch per 100 baris agar aman untuk ratusan/ribuan santri
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < parsedExcelValidRows.length; i += BATCH_SIZE) {
+            const chunk = parsedExcelValidRows.slice(i, i + BATCH_SIZE);
+            const { error } = await supabaseClient
+                .from('santri')
+                .insert(chunk);
+
+            if (error) throw error;
+        }
+
+        const modal = getImportModal();
+        if (modal) modal.hide();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'Import Berhasil!',
+            text: `Sebanyak ${parsedExcelValidRows.length} data santri berhasil ditambahkan ke database.`,
+            confirmButtonColor: '#0f766e'
+        });
+
+        await fetchAllSantri();
+    } catch (err) {
+        Swal.fire('Gagal Mengimpor Data', err.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
