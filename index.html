@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Penilaian Tahfidz Santri</title>
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome 6.5 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <!-- SweetAlert2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.5/dist/sweetalert2.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Global Loading Spinner Overlay -->
+    <div id="loadingOverlay" class="loading-overlay d-none">
+        <div class="spinner-box text-center">
+            <div class="spinner-border text-emerald mb-3" role="status"></div>
+            <div class="fw-semibold text-dark" id="loadingText">Memuat data...</div>
+        </div>
+    </div>
+
+    <!-- Navbar Utama -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-emerald sticky-top shadow-sm">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center fw-bold" href="#">
+                <i class="fa-solid fa-book-quran fa-lg me-2 text-warning"></i>
+                <div>
+                    <span>e-Tahfidz</span>
+                    <small class="d-block fw-normal navbar-subtitle">Sistem Penilaian &amp; KKM Santri</small>
+                </div>
+            </a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="mainNavbar">
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0 gap-1">
+                    <li class="nav-item">
+                        <button class="nav-link active w-100 text-start px-3" id="nav-santri" onclick="switchMainMenu('santri')">
+                            <i class="fa-solid fa-users me-2"></i>Database Santri
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link w-100 text-start px-3" id="nav-15juz" onclick="switchMainMenu('15 Juz')">
+                            <i class="fa-solid fa-layer-group me-2"></i>Tingkat 15 Juz
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link w-100 text-start px-3" id="nav-30juz" onclick="switchMainMenu('30 Juz')">
+                            <i class="fa-solid fa-crown me-2"></i>Tingkat 30 Juz
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="container py-4">
+
+        <!-- ============================================================== -->
+        <!-- SECTION 1: MENU DATABASE SANTRI                                -->
+        <!-- ============================================================== -->
+        <section id="view-santri" class="fade-in">
+            <!-- Ringkasan Statistik -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="card stat-card border-0 shadow-sm h-100">
+                        <div class="card-body d-flex align-items-center">
+                            <div class="stat-icon bg-emerald-subtle text-emerald me-3">
+                                <i class="fa-solid fa-user-graduate"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small fw-medium">Total Seluruh Santri</div>
+                                <h3 class="fw-bold mb-0" id="stat-total-santri">0</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card stat-card border-0 shadow-sm h-100">
+                        <div class="card-body d-flex align-items-center">
+                            <div class="stat-icon bg-primary-subtle text-primary me-3">
+                                <i class="fa-solid fa-book-open"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small fw-medium">Kategori 15 Juz</div>
+                                <h3 class="fw-bold mb-0" id="stat-15juz-santri">0</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card stat-card border-0 shadow-sm h-100">
+                        <div class="card-body d-flex align-items-center">
+                            <div class="stat-icon bg-warning-subtle text-warning-emphasis me-3">
+                                <i class="fa-solid fa-award"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small fw-medium">Kategori 30 Juz</div>
+                                <h3 class="fw-bold mb-0" id="stat-30juz-santri">0</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Tabel Database Santri -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div>
+                        <h5 class="fw-bold mb-0 text-dark">
+                            <i class="fa-solid fa-database text-emerald me-2"></i>Master Database Santri
+                        </h5>
+                        <small class="text-muted">Kelola data identitas, asrama, dan kategori tingkat hafalan santri</small>
+                    </div>
+                    <button class="btn btn-emerald fw-semibold" onclick="openSantriModal()">
+                        <i class="fa-solid fa-user-plus me-2"></i>Tambah Santri Baru
+                    </button>
+                </div>
+
+                <div class="card-body">
+                    <!-- Filter & Pencarian Realtime -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-8">
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0">
+                                    <i class="fa-solid fa-magnifying-glass text-muted"></i>
+                                </span>
+                                <input type="text" id="searchSantriInput" class="form-control border-start-0" 
+                                       placeholder="Cari nama santri atau nama asrama secara realtime..." 
+                                       oninput="renderSantriTable()">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <select id="filterKategoriSantri" class="form-select" onchange="renderSantriTable()">
+                                <option value="ALL">Semua Kategori Tingkat (15 &amp; 30 Juz)</option>
+                                <option value="15 Juz">Hanya Tingkat 15 Juz</option>
+                                <option value="30 Juz">Hanya Tingkat 30 Juz</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Tabel Santri -->
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 custom-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-center" style="width: 60px;">No</th>
+                                    <th>Nama Lengkap Santri</th>
+                                    <th>Asrama</th>
+                                    <th class="text-center">Kategori Tingkat</th>
+                                    <th class="text-center" style="width: 150px;">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="santriTableBody">
+                                <!-- Diisi secara dinamis oleh app.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- SECTION 2: MENU PENILAIAN (15 JUZ & 30 JUZ)                    -->
+        <!-- ============================================================== -->
+        <section id="view-penilaian" class="d-none fade-in">
+            <!-- Header Tingkat -->
+            <div class="card border-0 shadow-sm mb-3 bg-gradient-emerald text-white">
+                <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3 py-3">
+                    <div>
+                        <span class="badge bg-warning text-dark fw-bold mb-1">MODUL PENILAIAN &amp; EVALUASI KKM</span>
+                        <h4 class="fw-bold mb-0" id="penilaianTitle">Penilaian Tahfidz Tingkat 15 Juz</h4>
+                        <small class="text-white-50" id="penilaianSubtitle">Standar KKM Kelulusan Tahap: Nilai Rata-rata Minimal 85.00</small>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="bg-white bg-opacity-10 rounded px-3 py-2 text-end">
+                            <div class="small text-white-50">Santri Terdaftar</div>
+                            <div class="fw-bold fs-5" id="penilaianCountSantri">0 Santri</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Baris Pemilihan Tes (Tes 1 s/d Tes 10 + Rekap Tahunan) -->
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body py-3">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                        <span class="fw-semibold text-secondary small text-uppercase">
+                            <i class="fa-solid fa-calendar-check me-1 text-emerald"></i>Pilih Periode Evaluasi / Tes Tahunan:
+                        </span>
+                        <span class="badge bg-emerald-subtle text-emerald" id="activePeriodBadge">Mode: Tes 1</span>
+                    </div>
+                    <div class="d-flex flex-wrap gap-1" id="testSelectorContainer">
+                        <!-- Tombol Tes 1 - 10 dan Rekap Tahunan dirender dinamis oleh app.js -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUB-VIEW A: MODE INPUT & TABEL NILAI PER TES (TES 1 - 10) -->
+            <div id="subview-tes-harian" class="card border-0 shadow-sm">
+                <div class="card-header bg-white pt-3 pb-0 border-bottom">
+                    <div class="row align-items-center g-2">
+                        <!-- Sub-menu / Tabs Tahapan (Tahap 1, 2, 3) -->
+                        <div class="col-lg-8">
+                            <ul class="nav nav-tabs card-header-tabs border-bottom-0 gap-1" id="tahapTabsContainer">
+                                <!-- Dirender dinamis sesuai Tingkat 15 Juz atau 30 Juz -->
+                            </ul>
+                        </div>
+                        <!-- Pencarian Santri di Tabel Nilai -->
+                        <div class="col-lg-4 pb-2">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light"><i class="fa-solid fa-search text-muted"></i></span>
+                                <input type="text" id="searchNilaiInput" class="form-control" 
+                                       placeholder="Filter nama santri atau asrama..." 
+                                       oninput="renderNilaiTable()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                        <div class="small text-muted">
+                            <i class="fa-solid fa-circle-info text-primary me-1"></i>
+                            Klik tombol <strong>Input / Edit Nilai</strong> pada baris santri untuk memasukkan nilai per Juz (Skala 0 - 100).
+                        </div>
+                        <div class="d-flex gap-2 small">
+                            <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                <i class="fa-solid fa-check-circle me-1"></i>Tuntas / Lulus Tahap (Rata-rata minimal 85)
+                            </span>
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                                <i class="fa-solid fa-xmark-circle me-1"></i>Belum Tuntas (Rata-rata di bawah 85)
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover table-bordered align-middle mb-0 custom-table">
+                            <thead class="table-light text-center" id="nilaiTableHead">
+                                <!-- Header Kolom Juz Dinamis -->
+                            </thead>
+                            <tbody id="nilaiTableBody">
+                                <!-- Isi Nilai Santri Dinamis -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUB-VIEW B: MODE REKAPITULASI TAHUNAN (TES 1 S/D TES 10) -->
+            <div id="subview-rekap-tahunan" class="card border-0 shadow-sm d-none">
+                <div class="card-header bg-white py-3">
+                    <div class="row align-items-center g-3">
+                        <div class="col-lg-5">
+                            <h5 class="fw-bold mb-0 text-dark">
+                                <i class="fa-solid fa-chart-line text-emerald me-2"></i>Rekapitulasi Nilai Tahunan (Tes 1 s/d Tes 10)
+                            </h5>
+                            <small class="text-muted" id="rekapSubtitleInfo">Ringkasan perkembangan rata-rata nilai dan status kelulusan akhir</small>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light fw-semibold">Cakupan Tahap:</span>
+                                <select id="rekapTahapFilter" class="form-select" onchange="loadRekapTahunan()">
+                                    <!-- Diisi dinamis oleh app.js -->
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-lg-3">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light"><i class="fa-solid fa-search text-muted"></i></span>
+                                <input type="text" id="searchRekapInput" class="form-control" 
+                                       placeholder="Cari nama/asrama..." 
+                                       oninput="renderRekapTable()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-bordered align-middle mb-0 custom-table rekap-table">
+                            <thead class="table-light text-center">
+                                <tr>
+                                    <th style="width: 50px;">No</th>
+                                    <th class="text-start" style="min-width: 190px;">Nama Santri</th>
+                                    <th style="min-width: 130px;">Asrama</th>
+                                    <th>Tes 1</th>
+                                    <th>Tes 2</th>
+                                    <th>Tes 3</th>
+                                    <th>Tes 4</th>
+                                    <th>Tes 5</th>
+                                    <th>Tes 6</th>
+                                    <th>Tes 7</th>
+                                    <th>Tes 8</th>
+                                    <th>Tes 9</th>
+                                    <th>Tes 10</th>
+                                    <th class="bg-light-emerald">Rata-rata Akhir</th>
+                                    <th style="min-width: 160px;">Status Kelulusan Akhir</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rekapTableBody">
+                                <!-- Diisi dinamis oleh app.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ================================================================== -->
+    <!-- MODAL 1: TAMBAH / EDIT SANTRI                                      -->
+    <!-- ================================================================== -->
+    <div class="modal fade" id="santriModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <form id="santriForm" onsubmit="handleSaveSantri(event)">
+                    <div class="modal-header bg-emerald text-white">
+                        <h5 class="modal-title fw-bold" id="santriModalTitle">
+                            <i class="fa-solid fa-user-plus me-2"></i>Tambah Data Santri
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <input type="hidden" id="santriIdInput">
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Nama Lengkap Santri <span class="text-danger">*</span></label>
+                            <input type="text" id="santriNamaInput" class="form-control" placeholder="Contoh: Ahmad Fauzan" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Nama Asrama / Kamar <span class="text-danger">*</span></label>
+                            <input type="text" id="santriAsramaInput" class="form-control" placeholder="Contoh: Asrama Abu Bakar" required>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Kategori Tingkat Hafalan <span class="text-danger">*</span></label>
+                            <select id="santriTingkatInput" class="form-select" required>
+                                <option value="15 Juz">Tingkat 15 Juz (Juz 1 s/d Juz 15)</option>
+                                <option value="30 Juz">Tingkat 30 Juz (Juz 16 s/d Juz 30)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-emerald fw-semibold">
+                            <i class="fa-solid fa-floppy-disk me-2"></i>Simpan Data
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================== -->
+    <!-- MODAL 2: INPUT / EDIT NILAI TAHFIDZ (UPSERT)                       -->
+    <!-- ================================================================== -->
+    <div class="modal fade" id="nilaiModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-0 shadow">
+                <form id="nilaiForm" onsubmit="handleSaveNilai(event)">
+                    <div class="modal-header bg-emerald text-white">
+                        <div>
+                            <h5 class="modal-title fw-bold mb-0">
+                                <i class="fa-solid fa-pen-to-square me-2"></i>Form Input Penilaian Tahfidz
+                            </h5>
+                            <small class="text-white-50" id="nilaiModalSubtitle">Tingkat 15 Juz - Tahap 1 - Tes 1</small>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <input type="hidden" id="nilaiSantriId">
+
+                        <!-- Info Santri -->
+                        <div class="alert alert-light border d-flex justify-content-between align-items-center mb-4">
+                            <div>
+                                <div class="small text-muted">Nama Santri:</div>
+                                <div class="fw-bold fs-5 text-dark" id="nilaiSantriNama">-</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="small text-muted">Asrama:</div>
+                                <span class="badge bg-secondary" id="nilaiSantriAsrama">-</span>
+                            </div>
+                        </div>
+
+                        <!-- Input 5 Juz -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-sm-6 col-md-4">
+                                <label class="form-label fw-semibold" id="labelJuz1">Nilai Juz 1</label>
+                                <input type="number" step="0.01" min="0" max="100" id="inputJuz1" 
+                                       class="form-control form-control-lg text-center fw-bold nilai-input" 
+                                       required oninput="calculateModalAverage()">
+                            </div>
+                            <div class="col-sm-6 col-md-4">
+                                <label class="form-label fw-semibold" id="labelJuz2">Nilai Juz 2</label>
+                                <input type="number" step="0.01" min="0" max="100" id="inputJuz2" 
+                                       class="form-control form-control-lg text-center fw-bold nilai-input" 
+                                       required oninput="calculateModalAverage()">
+                            </div>
+                            <div class="col-sm-6 col-md-4">
+                                <label class="form-label fw-semibold" id="labelJuz3">Nilai Juz 3</label>
+                                <input type="number" step="0.01" min="0" max="100" id="inputJuz3" 
+                                       class="form-control form-control-lg text-center fw-bold nilai-input" 
+                                       required oninput="calculateModalAverage()">
+                            </div>
+                            <div class="col-sm-6 col-md-6">
+                                <label class="form-label fw-semibold" id="labelJuz4">Nilai Juz 4</label>
+                                <input type="number" step="0.01" min="0" max="100" id="inputJuz4" 
+                                       class="form-control form-control-lg text-center fw-bold nilai-input" 
+                                       required oninput="calculateModalAverage()">
+                            </div>
+                            <div class="col-sm-12 col-md-6">
+                                <label class="form-label fw-semibold" id="labelJuz5">Nilai Juz 5</label>
+                                <input type="number" step="0.01" min="0" max="100" id="inputJuz5" 
+                                       class="form-control form-control-lg text-center fw-bold nilai-input" 
+                                       required oninput="calculateModalAverage()">
+                            </div>
+                        </div>
+
+                        <!-- Kalkulasi Rata-rata & Preview KKM Realtime -->
+                        <div class="p-3 rounded-3 bg-light border d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <div>
+                                <div class="text-muted small fw-medium">Kalkulasi Rata-Rata Otomatis (5 Juz):</div>
+                                <div class="fs-3 fw-bold text-dark" id="previewRataRata">0.00</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="text-muted small fw-medium mb-1">Status KKM (Minimal 85):</div>
+                                <div id="previewStatusKKM">
+                                    <span class="badge bg-danger fs-6 px-3 py-2">Belum Tuntas</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-emerald fw-semibold px-4">
+                            <i class="fa-solid fa-check-double me-2"></i>Simpan Nilai (Upsert)
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- SweetAlert2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.5/dist/sweetalert2.all.min.js"></script>
+    <!-- Supabase JS Client v2 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Main Application Logic -->
+    <script src="app.js"></script>
+</body>
+</html>
