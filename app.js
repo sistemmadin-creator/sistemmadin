@@ -6,7 +6,7 @@
 
 // 1. KONFIGURASI SUPABASE CLIENT
 // Ganti kedua nilai di bawah ini dengan Project URL dan Anon Key dari Dashboard Supabase Anda
-const SUPABASE_URL = 'https://xttudwxkmjezzivzjflz.supabase.co/rest/v1/';
+const SUPABASE_URL = 'https://xttudwxkmjezzivzjflz.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_MMLU3qDbmLbXjRFV1eic6Q_wta0Yd47';
 
 const KKM_THRESHOLD = 85.0;
